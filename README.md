@@ -1,4 +1,4 @@
-# Council of Agents - AI Code Review Action
+# AI Council Reviewer
 
 An advanced, multi-agent AI code review system powered by Google Gemini. This GitHub Action orchestrates a "Council" of specialized AI agents to review pull requests, providing comprehensive feedback across security, performance, architecture, documentation, and governance.
 
