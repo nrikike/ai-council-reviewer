@@ -72,6 +72,15 @@ env:
   COUNCIL_DOMAIN_KEYWORDS: "database, api, webhook, internal, auth, users"
   COUNCIL_ARCHITECTURE_DOCS: "README.md, docs/architecture.md"
   
+  # Cross-Repository Context (Architect Agent)
+  # Leave empty if you don't need cross-repo analysis
+  COUNCIL_CROSS_REPO_1: "my-org/backend-service"
+  COUNCIL_CROSS_REPO_2: "my-org/infrastructure"
+  
+  # API Route Parameterization
+  # Change this to match your backend framework's route prefix (e.g., "/v1/", "/graphql", "/api/")
+  COUNCIL_API_ROUTE_PREFIX: "/api/"
+  
   # LLM Models Configuration
   COUNCIL_MAIN_MODEL: "gemini-3.1-pro-preview"
   COUNCIL_FALLBACK_MODEL: "gemini-flash-latest"
@@ -85,6 +94,8 @@ env:
 - `COUNCIL_TECH_STACK`: Technologies used (helps the Docs and Performance agents).
 - `COUNCIL_DOMAIN_KEYWORDS`: Comma-separated list of keywords. When these are found in the PR, the Architect agent will search for related files across the codebase.
 - `COUNCIL_ARCHITECTURE_DOCS`: Comma-separated list of reference files to include in the AI's context window.
+- `COUNCIL_CROSS_REPO_1` / `COUNCIL_CROSS_REPO_2`: The GitHub slug of any additional repositories the Architect agent should cross-reference when domain keywords or function signatures match.
+- `COUNCIL_API_ROUTE_PREFIX`: A regex string used to identify API routes in the diff (e.g., `/api/` or `/v1/`), allowing the agent to specifically pull related architecture context.
 - `COUNCIL_MAIN_MODEL`: The primary Gemini model used for code review.
 - `COUNCIL_FALLBACK_MODEL`: The fallback model used if the main one rate limits or fails.
 - `COUNCIL_REVIEW_COOLDOWN_MINUTES`: Cooldown period before triggering another review on the same PR (helps prevent infinite loops on automated commits).
@@ -99,19 +110,8 @@ env:
 If your architecture spans multiple repositories (e.g., a frontend repo and a separate infrastructure repo), the **Architect Agent** can check out and cross-reference them.
 
 1. Set a Personal Access Token (PAT) with repository access as `REPO_ACCESS_TOKEN` in your secrets.
-2. Update the checkouts in the `review` job of the workflow:
-
-```yaml
-      # Cross-repo checkouts for architect.
-      - name: Checkout backend repo
-        if: matrix.agent == 'architect'
-        uses: actions/checkout@v4
-        with:
-          repository: my-org/backend-service
-          path: repos/backend
-          token: ${{ secrets.REPO_ACCESS_TOKEN || secrets.GITHUB_TOKEN }}
-          fetch-depth: 1
-```
+2. Define the repositories in your workflow environment variables (`COUNCIL_CROSS_REPO_1`).
+3. Whenever a developer introduces a new API route, uses one of the `COUNCIL_DOMAIN_KEYWORDS`, or modifies a function/class signature (e.g., `class MyService`), the Architect agent will intelligently scan the cross-repositories for those specific keywords to ensure contracts and architectural boundaries aren't broken.
 
 ## Prompt Customization
 

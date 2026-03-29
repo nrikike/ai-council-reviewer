@@ -22,12 +22,21 @@ env:
   COUNCIL_DOMAIN_KEYWORDS: "database, api, webhook, internal, auth, users"
   COUNCIL_ARCHITECTURE_DOCS: "README.md, architecture.md"
   
+  # Cross-Repository Context (Architect Agent)
+  # Leave empty if you don't need cross-repo analysis
+  COUNCIL_CROSS_REPO_1: "my-org/backend-service"
+  COUNCIL_CROSS_REPO_2: "my-org/infrastructure"
+  
   # LLM Models Configuration
   COUNCIL_MAIN_MODEL: "gemini-3.1-pro-preview"
   COUNCIL_FALLBACK_MODEL: "gemini-flash-latest"
   
   # Failsafe and Constraints
   COUNCIL_REVIEW_COOLDOWN_MINUTES: "30"
+
+  # API Route Parameterization
+  # Change this to match your backend framework's route prefix (e.g., "/v1/", "/graphql", "/api/")
+  COUNCIL_API_ROUTE_PREFIX: "/api/"
 
 jobs:
   # JOB 1: Triage (Orchestrator)
@@ -61,11 +70,6 @@ jobs:
   review:
     needs: triage
     runs-on: ubuntu-latest
-    env:
-      # Cross-repo context for architect agent (Optional: my-org/backend, my-org/infrastructure).
-      # If you don't use cross-repo context, you can remove these checkouts.
-      BACKEND_REPO: ${{ github.repository_owner }}/backend-service
-      INFRA_REPO: ${{ github.repository_owner }}/infrastructure
     strategy:
       matrix: ${{ fromJson(needs.triage.outputs.matrix) }}
       fail-fast: false # Don't cancel other agents if one fails
@@ -74,25 +78,25 @@ jobs:
         with:
           fetch-depth: 0
           
-      # Cross-repo checkouts for architect. Use REPO_ACCESS_TOKEN for private backend/infra repos.
-      # continue-on-error: so architect job still runs (script handles missing dirs) when token/repos missing.
-      - name: Checkout backend repo (architect only)
-        if: matrix.agent == 'architect'
+      # Cross-repo checkouts for architect. Use REPO_ACCESS_TOKEN for private repos.
+      # continue-on-error: so architect job still runs when token/repos missing.
+      - name: Checkout cross-repo 1 (architect only)
+        if: matrix.agent == 'architect' && env.COUNCIL_CROSS_REPO_1 != ''
         continue-on-error: true
         uses: actions/checkout@v4
         with:
-          repository: ${{ env.BACKEND_REPO }}
-          path: repos/backend
+          repository: ${{ env.COUNCIL_CROSS_REPO_1 }}
+          path: repos/cross_repo_1
           token: ${{ secrets.REPO_ACCESS_TOKEN || secrets.GITHUB_TOKEN }}
           fetch-depth: 1
 
-      - name: Checkout infrastructure repo (architect only)
-        if: matrix.agent == 'architect'
+      - name: Checkout cross-repo 2 (architect only)
+        if: matrix.agent == 'architect' && env.COUNCIL_CROSS_REPO_2 != ''
         continue-on-error: true
         uses: actions/checkout@v4
         with:
-          repository: ${{ env.INFRA_REPO }}
-          path: repos/infrastructure
+          repository: ${{ env.COUNCIL_CROSS_REPO_2 }}
+          path: repos/cross_repo_2
           token: ${{ secrets.REPO_ACCESS_TOKEN || secrets.GITHUB_TOKEN }}
           fetch-depth: 1
           

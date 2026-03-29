@@ -379,9 +379,23 @@ function extractSearchTokensFromDiff(diff) {
   const tokens = new Set();
   const normalized = diff.replace(/\\/g, '/');
 
-  // API route paths: /api/internal/..., /api/webhooks/...
-  const pathMatches = normalized.match(/\/api\/[a-zA-Z0-9/_-]+/g);
+  // API route paths (customizable)
+  const routePrefix = process.env.COUNCIL_API_ROUTE_PREFIX || "/api/";
+  // Safely escape the prefix for regex use
+  const safePrefix = routePrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const routeRegex = new RegExp(`${safePrefix}[a-zA-Z0-9/_-]+`, 'g');
+  const pathMatches = normalized.match(routeRegex);
   if (pathMatches) pathMatches.forEach(p => tokens.add(p));
+
+  // Extract function/class names from added or modified lines
+  // Matches: "function myFunc", "class MyClass", "const myFunc =", "let myFunc =", "interface MyInterface"
+  const signatureRegex = /^\+.*(?:function|class|interface|const|let)\s+([a-zA-Z_$][0-9a-zA-Z_$]*)/gm;
+  let match;
+  while ((match = signatureRegex.exec(normalized)) !== null) {
+    if (match[1] && match[1].length >= 3) { // Ignore very short names (e.g., 'i', 'cb')
+      tokens.add(match[1]);
+    }
+  }
 
   // Common service/feature names (customizable via env var)
   const envKeywords = process.env.COUNCIL_DOMAIN_KEYWORDS;

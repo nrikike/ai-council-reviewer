@@ -215,12 +215,12 @@ async function run() {
         }
       };
 
-      const backendDir = path.join(rootDir, "repos/backend");
-      const infraDir = path.join(rootDir, "repos/infrastructure");
+      const backendDir = path.join(rootDir, "repos/cross_repo_1");
+      const infraDir = path.join(rootDir, "repos/cross_repo_2");
 
-      // Backend: README, architecture docs, requirements.txt + module READMEs + key Python (core/, common/)
+      // Cross Repo 1: README, architecture docs, requirements.txt + module READMEs + key Python (core/, common/)
       if (fs.existsSync(backendDir) && fs.statSync(backendDir).isDirectory()) {
-        const out = { content: "\n\n## Backend repo (repos/backend)\n" };
+        const out = { content: "\n\n## Cross-Repo 1 Context\n" };
         ["README.md", "requirements.txt"].forEach(f => addFile(backendDir, out, f));
         
         // Add dynamic architecture docs based on the configured list
