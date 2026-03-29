@@ -1,0 +1,191 @@
+name: AI Code Review (Council of Agents)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+env:
+  # Base Configuration for the Council of Agents
+  COUNCIL_PROJECT_NAME: "My Awesome Project"
+  COUNCIL_PROJECT_DESC: "A sample web application using standard technologies."
+  COUNCIL_TECH_STACK: "Next.js, TypeScript, PostgreSQL, Tailwind CSS"
+  COUNCIL_DOMAIN_KEYWORDS: "database, api, webhook, internal, auth, users"
+  COUNCIL_ARCHITECTURE_DOCS: "README.md, architecture.md"
+
+jobs:
+  # JOB 1: Triage (Orchestrator)
+  triage:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Install Dependencies
+        run: npm install @google/generative-ai zod
+        
+      - name: Run Orchestrator
+        id: set-matrix
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GITHUB_BASE_REF: ${{ github.base_ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: node .github/scripts/gemini-triage.js
+
+  # JOB 2: Specialist Reviews (Matrix)
+  review:
+    needs: triage
+    runs-on: ubuntu-latest
+    env:
+      # Cross-repo context for architect agent (Optional: my-org/backend, my-org/infrastructure).
+      # If you don't use cross-repo context, you can remove these checkouts.
+      BACKEND_REPO: ${{ github.repository_owner }}/backend-service
+      INFRA_REPO: ${{ github.repository_owner }}/infrastructure
+    strategy:
+      matrix: ${{ fromJson(needs.triage.outputs.matrix) }}
+      fail-fast: false # Don't cancel other agents if one fails
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
+      # Cross-repo checkouts for architect. Use REPO_ACCESS_TOKEN for private backend/infra repos.
+      # continue-on-error: so architect job still runs (script handles missing dirs) when token/repos missing.
+      - name: Checkout backend repo (architect only)
+        if: matrix.agent == 'architect'
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.BACKEND_REPO }}
+          path: repos/backend
+          token: ${{ secrets.REPO_ACCESS_TOKEN || secrets.GITHUB_TOKEN }}
+          fetch-depth: 1
+
+      - name: Checkout infrastructure repo (architect only)
+        if: matrix.agent == 'architect'
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.INFRA_REPO }}
+          path: repos/infrastructure
+          token: ${{ secrets.REPO_ACCESS_TOKEN || secrets.GITHUB_TOKEN }}
+          fetch-depth: 1
+          
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Install Dependencies
+        run: npm install @google/generative-ai zod
+
+      - name: Run Specialist Agent
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GITHUB_BASE_REF: ${{ github.base_ref }}
+        run: node .github/scripts/gemini-review.js --agent ${{ matrix.agent }}
+
+      - name: Upload Artifact
+        if: always() # Upload logs even if the script fails
+        uses: actions/upload-artifact@v4
+        with:
+          name: review-${{ matrix.agent }}
+          path: review-${{ matrix.agent }}.json
+
+  # JOB 3: Aggregation
+  aggregate:
+    needs: review
+    runs-on: ubuntu-latest
+    if: always() # Run even if some agents failed
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Install Dependencies
+        run: npm install @google/generative-ai zod
+
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: .
+          merge-multiple: true # Flattens directory structure
+          
+      - name: Run Aggregator
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} # For gh cli
+        run: node .github/scripts/gemini-aggregate.js
+
+  # JOB 4: Auto-Fix (Conditional)
+  auto-fix:
+    needs: aggregate
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'pull_request' &&
+      (github.event.pull_request.draft == true || contains(github.event.pull_request.labels.*.name, 'auto-fix'))
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref }} # Checkout the actual branch, not the merge commit
+          token: ${{ secrets.GITHUB_TOKEN }} # Use standard token for commits (or PAT if protected branches)
+      
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Install Dependencies
+        run: npm install --no-save @google/generative-ai zod
+
+      - name: Download Review Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: .
+          merge-multiple: true
+
+      - name: Run Auto-Fixer
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: node .github/scripts/gemini-fix.js
+        
+      - name: Commit Changes
+        run: |
+          git config user.name "Council-Bot"
+          git config user.email "council-bot@users.noreply.github.com"
+          
+          # Restore lockfiles to prevent churn
+          git restore --staged package-lock.json yarn.lock package.json 2>/dev/null || true
+          git checkout -- package-lock.json yarn.lock package.json 2>/dev/null || true
+          
+          if git diff --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          
+          git add .
+          git commit -m "fix: auto-fixes from Council of Agents"
+          git push
