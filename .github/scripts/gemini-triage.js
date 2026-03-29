@@ -25,9 +25,11 @@ async function run() {
       console.warn("Failed to check commit author:", e.message);
     }
 
-    // 2. Guardrail: 30-minute cooldown since last Council review comment
+    // 2. Guardrail: Cooldown since last Council review comment
     const prNumber = process.env.PR_NUMBER && process.env.PR_NUMBER.trim();
-    if (prNumber && /^\d+$/.test(prNumber)) {
+    const cooldownMinutes = parseInt(process.env.COUNCIL_REVIEW_COOLDOWN_MINUTES || "30", 10);
+    
+    if (prNumber && /^\d+$/.test(prNumber) && cooldownMinutes > 0) {
       try {
         const commentsJson = execSync(`gh pr view ${prNumber} --json comments`, { encoding: "utf-8" });
         const { comments } = JSON.parse(commentsJson);
@@ -39,8 +41,8 @@ async function run() {
           const lastAt = new Date(sorted[0].createdAt);
           const now = new Date();
           const minutesAgo = (now - lastAt) / (60 * 1000);
-          if (minutesAgo < 30) {
-            console.log(`⏭️ Skipping review: Last Council review was ${Math.round(minutesAgo)} minutes ago (cooldown 30 min).`);
+          if (minutesAgo < cooldownMinutes) {
+            console.log(`⏭️ Skipping review: Last Council review was ${Math.round(minutesAgo)} minutes ago (cooldown ${cooldownMinutes} min).`);
             setOutput("matrix", JSON.stringify({ include: [] }));
             return;
           }

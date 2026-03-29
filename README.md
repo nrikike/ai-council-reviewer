@@ -53,6 +53,13 @@ env:
   COUNCIL_TECH_STACK: "Next.js, TypeScript, PostgreSQL, Tailwind CSS"
   COUNCIL_DOMAIN_KEYWORDS: "database, api, webhook, internal, auth, users"
   COUNCIL_ARCHITECTURE_DOCS: "README.md, docs/architecture.md"
+  
+  # LLM Models Configuration
+  COUNCIL_MAIN_MODEL: "gemini-3.1-pro-preview"
+  COUNCIL_FALLBACK_MODEL: "gemini-flash-latest"
+  
+  # Failsafe and Constraints
+  COUNCIL_REVIEW_COOLDOWN_MINUTES: "30"
 ```
 
 - `COUNCIL_PROJECT_NAME`: The name of your project.
@@ -60,6 +67,14 @@ env:
 - `COUNCIL_TECH_STACK`: Technologies used (helps the Docs and Performance agents).
 - `COUNCIL_DOMAIN_KEYWORDS`: Comma-separated list of keywords. When these are found in the PR, the Architect agent will search for related files across the codebase.
 - `COUNCIL_ARCHITECTURE_DOCS`: Comma-separated list of reference files to include in the AI's context window.
+- `COUNCIL_MAIN_MODEL`: The primary Gemini model used for code review.
+- `COUNCIL_FALLBACK_MODEL`: The fallback model used if the main one rate limits or fails.
+- `COUNCIL_REVIEW_COOLDOWN_MINUTES`: Cooldown period before triggering another review on the same PR (helps prevent infinite loops on automated commits).
+
+### Github Secrets
+
+1. Add `GEMINI_API_KEY` to your repository's actions secrets (Settings > Secrets and variables > Actions).
+2. The workflow will use the default `GITHUB_TOKEN` for reading your code and posting the PR comments. Ensure your Action permissions (Settings > Actions > General) allow **Read and write permissions**.
 
 ### Cross-Repository Context (Advanced)
 
@@ -92,6 +107,10 @@ You can completely customize how each agent behaves by editing the Markdown prom
 - **Stateless Execution:** The agents run entirely within your GitHub Actions runners.
 - **Zero Data Retention:** No code is stored centrally. The system uses a hidden HTML comment within the PR itself (`<!-- council-data:xxx -->`) to persist issue tracking between commits.
 - **Circuit Breakers:** The API calls use exponential backoff and circuit breaking to prevent runaway costs or infinite loops on API failures.
+
+## Known Issues
+
+- **Persistent vs New Issue Categorization:** The logic that differentiates between previously known issues and newly surfaced issues is currently imperfect. Due to minor code shifts or LLM output variance, the Aggregator occasionally surfaces "Persistent Issues" (issues from prior commits on unchanged files) as "New Issues." We are iterating on the fingerprinting algorithm to improve idempotency.
 
 ## License
 

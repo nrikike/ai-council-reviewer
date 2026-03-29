@@ -21,6 +21,13 @@ env:
   COUNCIL_TECH_STACK: "Next.js, TypeScript, PostgreSQL, Tailwind CSS"
   COUNCIL_DOMAIN_KEYWORDS: "database, api, webhook, internal, auth, users"
   COUNCIL_ARCHITECTURE_DOCS: "README.md, architecture.md"
+  
+  # LLM Models Configuration
+  COUNCIL_MAIN_MODEL: "gemini-3.1-pro-preview"
+  COUNCIL_FALLBACK_MODEL: "gemini-flash-latest"
+  
+  # Failsafe and Constraints
+  COUNCIL_REVIEW_COOLDOWN_MINUTES: "30"
 
 jobs:
   # JOB 1: Triage (Orchestrator)

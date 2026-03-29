@@ -6,8 +6,8 @@ const path = require("path");
 
 // Configuration
 const CONFIG = {
-  model: "gemini-3.1-pro-preview",
-  fallbackModel: "gemini-flash-latest",
+  model: process.env.COUNCIL_MAIN_MODEL || "gemini-3.1-pro-preview",
+  fallbackModel: process.env.COUNCIL_FALLBACK_MODEL || "gemini-flash-latest",
   maxRetries: 3,
   initialDelay: 2000, // 2 seconds
   maxDelay: 30000,    // 30 seconds
