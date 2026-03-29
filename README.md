@@ -2,6 +2,24 @@
 
 An advanced, multi-agent AI code review system powered by Google Gemini. This GitHub Action orchestrates a "Council" of specialized AI agents to review pull requests, providing comprehensive feedback across security, performance, architecture, documentation, and governance.
 
+## ✨ Key Features
+
+- **Context-Aware Reviews:** The aggregator agent automatically fetches previous comments (from humans and bots) from the PR history to understand the ongoing discussion and adapt its review context.
+- **Smart Issue Tracking & Categorization:** Utilizing an embedded, hidden HTML payload (`<!-- council-data:... -->`) on PR comments, the workflow tracks issues across commits. It classifies them as:
+  - **New Issues:** Fresh problems identified in the current commit.
+  - **Recurring Issues:** Previously flagged issues that were still detected (collapsed by default to reduce noise).
+  - **Persistent Issues:** Issues from earlier reviews located in files that *haven't changed* in the latest commit, preventing them from being silently forgotten if the LLM skips them.
+- **Auto-Fixing (Draft PRs & Labels):** An optional Auto-Fixer agent will attempt to resolve CRITICAL and HIGH severity issues and commit the code directly to your branch. By default, it is configured to trigger **only on Draft PRs** or when the PR has the **`auto-fix`** label. This ensures your active PRs don't receive unexpected commits.
+- **Cross-Repository Context:** For organizations with multiple repositories, the Architect agent dynamically scans PR diffs for configured domain keywords. If found, it fetches and reads related architecture code and documentation from your other repositories to ensure cross-repo contracts aren't broken.
+- **Smart Diff Filtering:** Automatically skips irrelevant files (lockfiles, minified JS, images, svgs) to save tokens and focus the AI on meaningful logic.
+- **Parallel AI Execution:** The Orchestrator dynamically generates a matrix of required agents (Security, Performance, Docs, etc.) which are then executed simultaneously by GitHub Actions. This drastically reduces the total review time compared to sequential pipelines.
+- **Idempotency & Rate Limiting Failsafes:**
+  - Includes **automatic retries with exponential backoff** to handle transient API failures without crashing the workflow.
+  - Will safely update the existing PR comment (using `PATCH`) if the summary changes, rather than spamming the thread.
+  - Has a built-in cooldown timer (e.g., 30 minutes) to prevent infinite loops if bots trigger automated commits.
+  - Includes circuit breakers and an automated fallback model (e.g., falls back to `gemini-flash-latest`) in case of prolonged rate-limiting or API instability.
+  - Uses a "Guardrail" to skip reviewing commits authored by recognized bots (`Council-Bot`, `github-actions[bot]`).
+
 ## Architecture
 
 The system uses a "Chain of Draft" methodology with multiple distinct agents:
@@ -15,8 +33,8 @@ The system uses a "Chain of Draft" methodology with multiple distinct agents:
    - ⚖️ **Governance Agent:** Ensures adherence to project rules and proposes new rules for emerging patterns.
    - 🤔 **Contrarian Agent:** Challenges implementation choices and suggests better alternatives.
    - 🛠️ **General Agent:** Checks for clean code, style, and correctness.
-3. **Aggregator:** Synthesizes the individual reports into a single, cohesive, prioritized Markdown comment on the PR. It tracks "persistent" and "recurring" issues across commits.
-4. **Auto-Fixer (Optional):** If requested, attempts to automatically fix critical/high severity issues and commits them directly to the branch.
+3. **Aggregator:** Synthesizes the individual reports into a single, cohesive, prioritized Markdown comment on the PR. It tracks "persistent" and "recurring" issues across commits using hidden HTML metadata.
+4. **Auto-Fixer (Optional):** Automatically attempts to fix CRITICAL and HIGH severity issues. To prevent unexpected automated commits on active PRs, this job runs **only if the PR is in Draft mode** or if it has the **`auto-fix`** label applied. The agent drafts a fix, critiques its own fix against the project's rules, and then finalizes the commit to the branch.
 
 ## Getting Started
 
