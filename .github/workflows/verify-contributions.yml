@@ -1,0 +1,48 @@
+name: "Verify OS Contributions"
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/scripts/**'
+      - '.github/prompts/**'
+      - '.github/workflows/**'
+
+jobs:
+  lint-and-test:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: |
+          # The repo doesn't have a package.json at root, but the action requires these:
+          npm install @google/generative-ai zod
+
+      - name: Syntax Check JS files
+        run: |
+          for file in .github/scripts/*.js; do
+            node --check "$file"
+          done
+
+      - name: Verify No Secrets
+        # Ensures no common secret names were accidentally hardcoded back into the repo by contributors
+        run: |
+          if grep -E -i "sk-[a-zA-Z0-9]{32,}" .github/scripts/*.js .github/prompts/*.md; then
+            echo "::error::Potential secret token found in files!"
+            exit 1
+          fi
+          
+          if grep -r -i -E "HumanTruths|humantruths" .github/scripts/ .github/prompts/; then
+            echo "::error::Found private organization name in open source files!"
+            exit 1
+          fi
+          
+          echo "Security scan passed."

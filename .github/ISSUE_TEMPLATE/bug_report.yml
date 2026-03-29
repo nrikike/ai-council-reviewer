@@ -1,0 +1,48 @@
+name: Bug Report
+description: Create a report to help us improve
+labels: ["bug"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the bug
+      description: A clear and concise description of what the bug is.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce the behavior
+      description: Please provide clear steps to reproduce the issue.
+      placeholder: |
+        1. Set up the action with this configuration...
+        2. Make a PR containing...
+        3. The action output shows...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: A clear and concise description of what you expected to happen.
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: Workflow Configuration
+      description: Please paste your `.github/workflows/ai-code-review.yml` config (REMOVE ANY SECRETS/TOKENS first!).
+    validations:
+      required: false
+  - type: input
+    id: node-version
+    attributes:
+      label: Node.js / Action Environment
+      description: What runner are you using? (e.g. ubuntu-latest, windows-latest)
+    validations:
+      required: false
